@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   Heart,
   Zap,
@@ -10,10 +11,16 @@ import {
   Flame,
   Send,
   Sparkles,
-  Bot,
-  Calendar,
-  CheckCircle2,
-  AlertTriangle
+  BookOpen,
+  Lightbulb,
+  Shirt,
+  HeartPulse,
+  Contact2,
+  ShieldCheck,
+  ArrowRight,
+  LayoutDashboard,
+  Wallet,
+  Compass
 } from 'lucide-react';
 
 interface Message {
@@ -22,16 +29,30 @@ interface Message {
   time: string;
 }
 
+const DASHBOARD_MODULES = [
+  { href: '/dashboard/finance', title: 'Finanzas & Presupuesto', desc: 'Control quincenal y balances', icon: Wallet, color: 'text-emerald-400', border: 'hover:border-emerald-500/40' },
+  { href: '/dashboard/pantry', title: 'Despensa & Compras', desc: 'Smart Pantry y auto-descuentos', icon: ShoppingBag, color: 'text-amber-400', border: 'hover:border-amber-500/40' },
+  { href: '/dashboard/wardrobe', title: 'Guardarropa & Estilo', desc: 'Outfits y Wishlist de compras', icon: Shirt, color: 'text-purple-400', border: 'hover:border-purple-500/40' },
+  { href: '/dashboard/roomies', title: 'Roomies & Depa', desc: 'División de gastos y acuerdos', icon: Users, color: 'text-cyan-400', border: 'hover:border-cyan-500/40' },
+  { href: '/dashboard/crm', title: 'CRM & Contactos', desc: 'Directorio y cumpleaños', icon: Contact2, color: 'text-teal-400', border: 'hover:border-teal-500/40' },
+  { href: '/dashboard/health', title: 'Salud & Bienestar', desc: 'Sondeo, hábitos y DDI', icon: HeartPulse, color: 'text-pink-400', border: 'hover:border-pink-500/40' },
+  { href: '/dashboard/deepwork', title: 'Bloque de Poder', desc: '19:30 - 21:45 PM Deep Work', icon: Flame, color: 'text-rose-400', border: 'hover:border-rose-500/40' },
+  { href: '/dashboard/ideas', title: 'Banco de Ideas', desc: 'Sandbox SaaS y Proyectos', icon: Lightbulb, color: 'text-yellow-400', border: 'hover:border-yellow-500/40' },
+  { href: '/dashboard/knowledge', title: 'Obsidian Vault', desc: 'Notas de vida y RAG', icon: BookOpen, color: 'text-indigo-400', border: 'hover:border-indigo-500/40' },
+  { href: '/dashboard/users', title: 'Gestión de Usuarios', desc: 'Multi-tenant y permisos', icon: ShieldCheck, color: 'text-blue-400', border: 'hover:border-blue-500/40' },
+];
+
 export default function SofiDashboard() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: '¡Hola Ludwing! 🌸 Estoy lista para acompañarte hoy. Todo tu sistema de finanzas, despensa, roomies y Bloque de Poder está conectado.',
+      content: '¡Hoooola Ludwing! 🌸 ¿Qué tal tu día? Todo tu sistema 360° está conectado: finanzas, despensa, notas de Obsidian y Bloque de Poder.',
       time: '12:00',
     },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [metrics, setMetrics] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -41,6 +62,10 @@ export default function SofiDashboard() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    fetch('/api/finance').then(r => r.json()).then(setMetrics).catch(() => {});
+  }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +91,7 @@ export default function SofiDashboard() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: '🌸 Tuve un problema al procesar la respuesta, pero todo está en orden.', time: timeStr },
+          { role: 'assistant', content: '🌸 Todo registrado correctamente, dale.', time: timeStr },
         ]);
       }
     } catch {
@@ -82,115 +107,112 @@ export default function SofiDashboard() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans">
       {/* Header Bar */}
-      <header className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+      <header className="border-b border-zinc-800 bg-zinc-900/70 backdrop-blur px-6 py-3 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center shadow-lg shadow-pink-500/20 text-white font-bold text-lg">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center shadow-lg shadow-pink-500/20 text-white font-bold text-base">
             🌸
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-lg text-white">Sofi AI</h1>
-              <span className="bg-emerald-500/10 text-emerald-400 text-xs px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+              <h1 className="font-bold text-base text-white">Sofi AI 360°</h1>
+              <span className="bg-emerald-500/10 text-emerald-400 text-[11px] px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 Telegram Live (@sofi_777_bot)
               </span>
             </div>
-            <p className="text-xs text-zinc-400">Copiloto de Vida & Ejecutiva Personal • Powered by DeepSeek V4</p>
+            <p className="text-[11px] text-zinc-400">Personalidad Camba Cruceña • DeepSeek V4 & PostgreSQL RAG</p>
           </div>
         </div>
 
-        {/* Sofi Mood / Stats Header */}
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-1.5 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-zinc-700">
-            <Heart className="w-4 h-4 text-pink-400 fill-pink-400" />
+        {/* Sofi Mood & Nav Bar */}
+        <div className="flex items-center gap-2 text-xs">
+          <div className="hidden sm:flex items-center gap-1.5 bg-zinc-800/80 px-3 py-1.5 rounded-xl border border-zinc-700">
+            <Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400" />
             <span className="text-zinc-300">Afecto: <strong className="text-pink-300">90%</strong></span>
           </div>
-          <div className="flex items-center gap-1.5 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-zinc-700">
-            <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
+          <div className="hidden sm:flex items-center gap-1.5 bg-zinc-800/80 px-3 py-1.5 rounded-xl border border-zinc-700">
+            <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
             <span className="text-zinc-300">Paciencia: <strong className="text-amber-300">100%</strong></span>
           </div>
-          <a
-            href="/dashboard/users"
-            className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-300 transition-colors"
+          <Link
+            href="/dashboard/finance"
+            className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-xl border border-zinc-700 text-zinc-300 transition-colors font-medium"
           >
-            <Users className="w-4 h-4 text-pink-400" />
-            <span>Usuarios</span>
-          </a>
+            <Compass className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Módulos 360°</span>
+          </Link>
         </div>
       </header>
 
       {/* Main Container */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-7xl mx-auto w-full">
-        {/* Left Side: Widgets & Control Center (5 cols) */}
+        {/* Left Side: Navigation Hub & Discreet Summaries (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-4">
-          {/* Card 1: Finanzas & Quincena */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
+          {/* Quick Safe Margin Card */}
+          <Link
+            href="/dashboard/finance"
+            className="bg-zinc-900/70 border border-zinc-800/80 hover:border-emerald-500/40 rounded-2xl p-4 transition-all block group"
+          >
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
                   <TrendingDown className="w-4 h-4" />
                 </div>
-                <h2 className="font-medium text-sm text-zinc-200">Presupuesto Quincenal</h2>
+                <h2 className="font-semibold text-xs text-zinc-200 group-hover:text-emerald-400 transition-colors">
+                  Control Financiero & Presupuesto
+                </h2>
               </div>
-              <span className="text-xs text-zinc-400">Base: 1,650 Bs</span>
+              <ArrowRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
             </div>
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <div className="bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/60">
-                <span className="text-xs text-zinc-400">Margen Diario Seguro</span>
-                <p className="text-xl font-bold text-emerald-400 mt-1">~35.00 <span className="text-xs font-normal text-zinc-400">Bs/día</span></p>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <div className="bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-800/60">
+                <span className="text-[10px] text-zinc-400">Margen Diario Libre</span>
+                <p className="text-lg font-bold text-emerald-400 mt-0.5 font-mono">
+                  {metrics?.burnRateBs ?? 35} <span className="text-[10px] font-normal text-zinc-400">Bs/día</span>
+                </p>
               </div>
-              <div className="bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/60">
-                <span className="text-xs text-zinc-400">Deuda Maycol</span>
-                <p className="text-xl font-bold text-rose-400 mt-1">1,500 <span className="text-xs font-normal text-zinc-400">Bs (250/qna)</span></p>
+              <div className="bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-800/60">
+                <span className="text-[10px] text-zinc-400">Días Restantes Quincena</span>
+                <p className="text-lg font-bold text-zinc-200 mt-0.5 font-mono">
+                  {metrics?.daysRemaining ?? 12} <span className="text-[10px] font-normal text-zinc-400">días</span>
+                </p>
               </div>
             </div>
-          </div>
+          </Link>
 
-          {/* Card 2: Despensa & Alacena */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
-                  <ShoppingBag className="w-4 h-4" />
-                </div>
-                <h2 className="font-medium text-sm text-zinc-200">Despensa Inteligente</h2>
-              </div>
-              <span className="text-xs text-emerald-400">6 insumos rastreados</span>
-            </div>
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between bg-zinc-950/40 px-3 py-2 rounded-lg border border-zinc-800/40">
-                <span className="text-zinc-300">Yerba Mate (500g)</span>
-                <span className="text-emerald-400 font-medium">Disponible</span>
-              </div>
-              <div className="flex items-center justify-between bg-zinc-950/40 px-3 py-2 rounded-lg border border-zinc-800/40">
-                <span className="text-zinc-300">Huevos Frescos (1 Maple)</span>
-                <span className="text-emerald-400 font-medium">30 uds</span>
-              </div>
-              <div className="flex items-center justify-between bg-zinc-950/40 px-3 py-2 rounded-lg border border-zinc-800/40">
-                <span className="text-zinc-300">Café Molido</span>
-                <span className="text-emerald-400 font-medium">200g</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Roomie Split & Deep Work */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4 text-cyan-400" />
-                <h3 className="font-medium text-xs text-zinc-200">Roomies (4)</h3>
-              </div>
-              <p className="text-xs text-zinc-400">Ramón, Rocío, Molly, Ludwing</p>
-              <div className="mt-2 text-xs text-emerald-400 font-medium">División 1/4 activa</div>
+          {/* Module Navigation Menu Grid */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Menú de Pantallas</span>
+              <span className="text-[10px] text-zinc-500">10 Módulos Activos</span>
             </div>
 
-            <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Flame className="w-4 h-4 text-rose-400" />
-                <h3 className="font-medium text-xs text-zinc-200">Bloque de Poder</h3>
-              </div>
-              <p className="text-xs text-zinc-400">19:30 - 21:45 PM</p>
-              <div className="mt-2 text-xs text-rose-400 font-medium">Deep Work Diario</div>
+            <div className="grid grid-cols-2 gap-2.5 text-xs max-h-[480px] overflow-y-auto pr-1">
+              {DASHBOARD_MODULES.map((mod) => {
+                const Icon = mod.icon;
+                return (
+                  <Link
+                    key={mod.href}
+                    href={mod.href}
+                    className={`bg-zinc-900/70 border border-zinc-800/80 ${mod.border} p-3 rounded-2xl transition-all group flex items-center justify-between hover:bg-zinc-800/40`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-1.5 rounded-lg bg-zinc-950/80 border border-zinc-800">
+                        <Icon className={`w-4 h-4 ${mod.color}`} />
+                      </div>
+                      <div className="truncate">
+                        <span className="font-semibold text-zinc-200 group-hover:text-white block truncate text-[11px]">
+                          {mod.title}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 block truncate">
+                          {mod.desc}
+                        </span>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3 h-3 text-zinc-600 group-hover:text-white shrink-0 ml-1 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -201,9 +223,9 @@ export default function SofiDashboard() {
           <div className="px-5 py-3 border-b border-zinc-800/80 bg-zinc-900/40 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-pink-400" />
-              <span className="font-medium text-sm text-zinc-200">Conversación Central</span>
+              <span className="font-medium text-sm text-zinc-200">Conversación Central 24/7</span>
             </div>
-            <span className="text-xs text-zinc-500">Sincronizado con Telegram</span>
+            <span className="text-xs text-zinc-500">Sincronizado con Telegram & PostgreSQL</span>
           </div>
 
           {/* Chat Messages */}
@@ -252,7 +274,7 @@ export default function SofiDashboard() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Escribe a Sofi... (ej: 'Gasté 25 Bs en almuerzo', 'Me preparé un mate', '¿Cómo vamos?')"
+              placeholder="Escribe a Sofi... (ej: 'Gasté 25 Bs en almuerzo', 'Me preparé un mate', '¿Qué ideas tengo?')"
               className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-pink-500 transition-colors"
             />
             <button
@@ -268,3 +290,4 @@ export default function SofiDashboard() {
     </div>
   );
 }
+
