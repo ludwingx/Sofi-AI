@@ -1,0 +1,339 @@
+// Prisma Multi-Tenant Schema for Sofi AI
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// 1. GESTIÓN MULTI-TENANT DE USUARIOS
+// ==========================================
+model User {
+  id           String   @id @default(cuid())
+  telegramId   String   @unique
+  name         String
+  role         String   @default("USER") // "ADMIN", "USER"
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones aisladas 100% por usuario
+  personalContexts      PersonalContext[]
+  financialTransactions FinancialTransaction[]
+  debtCommitments       DebtCommitment[]
+  pantryItems           PantryItem[]
+  activityLogs          ActivityLog[]
+  scheduleBlocks        ScheduleBlock[]
+  calendarEvents        CalendarEvent[]
+  reminders             Reminder[]
+  birthdays             Birthday[]
+  persons               Person[]
+  roomieExpenses        RoomieExpense[]
+  deepWorkLogs          DeepWorkLog[]
+  healthEpisodes        HealthEpisode[]
+  wardrobeItems         WardrobeItem[]
+  wishlistItems         WishlistItem[]
+  ideas                 Idea[]
+  dailyLogs             DailyLog[]
+  moodStates            SofiMoodState[]
+  habitLogs             HabitLog[]
+  chatMessages          ChatMessage[]
+}
+
+// ==========================================
+// 2. CONTEXTO & MEMORIA MAESTRA
+// ==========================================
+model PersonalContext {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String   // "profile", "goals", "financial_profile"
+  data      String   // JSON stringified data
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}
+
+// ==========================================
+// 3. FINANZAS & PRESUPUESTO
+// ==========================================
+model FinancialTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // "EXPENSE", "INCOME"
+  category    String   // "COMIDA", "TRANSPORTE", "SERVICIOS", "SALUD", "SALIDAS_OCIO", "TRABAJO", "RECREATIVO"
+  amountBs    Float
+  description String
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model DebtCommitment {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditorName      String   // "Maycol"
+  totalAmountBs     Float    // 1500.0
+  remainingAmountBs Float    // 1500.0
+  installmentBs     Float    // 250.0 por quincena
+  notes             String?
+  status            String   @default("ACTIVA") // "ACTIVA", "LIQUIDADA"
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+}
+
+// ==========================================
+// 4. DESPENSA & COCINA INTELIGENTE
+// ==========================================
+model PantryItem {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String   // "Yerba Mate", "Huevos Frescos", "Café Molido", etc.
+  currentStock     Float
+  unit             String   // "g", "unidades", "ml", "porciones"
+  defaultPortion   Float
+  minThreshold     Float
+  status           String   @default("DISPONIBLE") // "DISPONIBLE", "POR_AGOTARSE", "AGOTADO"
+  estimatedPriceBs Float?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@unique([userId, name])
+}
+
+// ==========================================
+// 5. BITÁCORA DE ACTIVIDADES & HÁBITOS
+// ==========================================
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // "CONSUMO", "BLOQUE_TRABAJO", "DESCANSO", "HABITO", "REFLEXION"
+  description String
+  metadata    String?  // JSON opcional
+  createdAt   DateTime @default(now())
+}
+
+model HabitLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habitType   String   // "MARIHUANA", "ALCOHOL", "GASTO_IMPULSIVO", "DISCIPLINA_CUMPLIDA"
+  amountBs    Float?
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+// ==========================================
+// 6. AGENDA, RUTINAS & RECORDATORIOS
+// ==========================================
+model ScheduleBlock {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   // "Laboral 1", "Almuerzo", "Laboral 2", "Bloque de Poder", "Cierre"
+  startTime   String   // "08:30"
+  endTime     String   // "13:00"
+  daysOfWeek  String   // "1,2,3,4,5"
+  description String?
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  dateTime    DateTime
+  location    String?
+  personId    String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Reminder {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message     String
+  dueDateTime DateTime
+  status      String   @default("PENDIENTE") // "PENDIENTE", "ENVIADO", "CANCELADO"
+  createdAt   DateTime @default(now())
+}
+
+model Birthday {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personName     String
+  birthDate      DateTime
+  relationship   String?
+  advanceDays    Int      @default(3)
+  createdAt      DateTime @default(now())
+}
+
+// ==========================================
+// 7. DIRECTORIO PERSONAL & CRM
+// ==========================================
+model Person {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  role        String?      // "Roomie", "Socio", "Cliente", "Amigo"
+  notes       PersonNote[]
+  agreements  Agreement[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, name])
+}
+
+model PersonNote {
+  id        String   @id @default(cuid())
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Agreement {
+  id        String   @id @default(cuid())
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  title     String
+  status    String   @default("ACTIVO") // "ACTIVO", "CUMPLIDO"
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// 8. ROOMIES & GASTOS COMPARTIDOS
+// ==========================================
+model RoomieExpense {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept       String   // "Garrafa de gas", "Bidón de agua"
+  totalAmountBs Float
+  paidBy        String   @default("Ludwing")
+  perPersonBs   Float
+  participants  String   @default("Ramón, Rocío, Molly, Ludwing")
+  status        String   @default("PENDIENTE") // "PENDIENTE", "LIQUIDADO"
+  createdAt     DateTime @default(now())
+}
+
+// ==========================================
+// 9. DEEP WORK & PRODUCTIVIDAD
+// ==========================================
+model DeepWorkLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      String   // "Sofi App", "OtherBrain"
+  hoursLogged  Float
+  deliverables String
+  createdAt    DateTime @default(now())
+}
+
+model Idea {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  category    String   @default("GENERAL") // "TECH", "NEGOCIO", "PERSONAL", "SOFI"
+  status      String   @default("INBOX")   // "INBOX", "EN_PROCESO", "ARCHIVADA"
+  tags        String?  // "ai, automation, agent"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// 10. SALUD, BIENESTAR & ARMARIO
+// ==========================================
+model HealthEpisode {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discomfortType   String   // "Dolor de cabeza", "Fatiga ocular", "Gastritis"
+  symptoms         String
+  possibleTriggers String?
+  actionsTaken     String?
+  status           String   @default("ACTIVO") // "ACTIVO", "ALIVIADO"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model WardrobeItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  category  String   // "SUPERIOR", "INFERIOR", "CALZADO", "ABRIGO", "ACCESORIO"
+  color     String
+  style     String?  // "Casual", "Formal", "Deportivo", "Casa"
+  status    String   @default("DISPONIBLE") // "DISPONIBLE", "SUCIO", "LAVANDERIA"
+  createdAt DateTime @default(now())
+}
+
+model WishlistItem {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title            String
+  category         String   // "SETUP", "HABITACION", "CASA", "OUTFITS"
+  estimatedPriceBs Float
+  priority         String   @default("MEDIA") // "BAJA", "MEDIA", "ALTA"
+  notes            String?
+  purchased        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+// ==========================================
+// 11. DISCIPLINA (DDI) & ESTADO DE ÁNIMO
+// ==========================================
+model DailyLog {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime @default(now())
+  reflection    String?
+  moodScore     Int?     // 1-10
+  energyScore   Int?     // 1-10
+  ddiScore      Int?     // Daily Discipline Index 0-100
+  deepWorkHours Float    @default(0)
+  spentTodayBs  Float    @default(0)
+  createdAt     DateTime @default(now())
+}
+
+model SofiMoodState {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  patience        Int      @default(100) // 0 - 100%
+  affection       Int      @default(90)  // 0 - 100%
+  concern         Int      @default(20)  // 0 - 100%
+  energy          Int      @default(100) // 0 - 100%
+  cleanStreakDays Int      @default(0)   // Racha limpia de vicios / orden
+  lastUpdated     DateTime @default(now())
+
+  @@unique([userId])
+}
+
+// ==========================================
+// 12. MENSAJES & CHAT UNIFICADO
+// ==========================================
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   String   @default("TELEGRAM") // "TELEGRAM", "WEB"
+  role      String   // "user", "assistant", "system"
+  content   String
+  createdAt DateTime @default(now())
+}
