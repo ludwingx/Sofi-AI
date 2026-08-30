@@ -6,6 +6,7 @@ import { getMoodHabitTools } from './moodHabitTools';
 import { getProductivityTools } from './productivityTools';
 import { getHealthTools } from './healthTools';
 import { getWardrobeTools } from './wardrobeTools';
+import { getKnowledgeTools } from './knowledgeTools';
 
 export function getSofiTools(userId: string) {
   const rawTools = {
@@ -17,6 +18,7 @@ export function getSofiTools(userId: string) {
     ...getProductivityTools(userId),
     ...getHealthTools(userId),
     ...getWardrobeTools(userId),
+    ...getKnowledgeTools(userId),
   };
 
   // Envolver cada herramienta con logs visuales en consola
@@ -57,5 +59,6 @@ export {
   getProductivityTools,
   getHealthTools,
   getWardrobeTools,
+  getKnowledgeTools,
 };
 

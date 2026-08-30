@@ -42,6 +42,8 @@ model User {
   moodStates            SofiMoodState[]
   habitLogs             HabitLog[]
   chatMessages          ChatMessage[]
+  knowledgeDocuments    KnowledgeDocument[]
+  knowledgeChunks       KnowledgeChunk[]
 }
 
 // ==========================================
@@ -337,3 +339,34 @@ model ChatMessage {
   content   String
   createdAt DateTime @default(now())
 }
+
+// ==========================================
+// 13. BASE DE CONOCIMIENTO & OBSIDIAN VAULT
+// ==========================================
+model KnowledgeDocument {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  sourcePath String?          // Ruta en Obsidian
+  category   String           @default("GENERAL") // "PROYECTO", "FINANZAS", "RUTINA", "IDEAS", "OBSIDIAN"
+  content    String           // Texto completo en Markdown
+  tags       String?          // "#sofi, #otherbrain"
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  chunks     KnowledgeChunk[]
+
+  @@unique([userId, title])
+}
+
+model KnowledgeChunk {
+  id         String            @id @default(cuid())
+  documentId String
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  content    String
+  createdAt  DateTime          @default(now())
+}
+
