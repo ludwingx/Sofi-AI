@@ -9,6 +9,97 @@ declare global {
   var __sofi_telegram_poller_active: boolean | undefined;
 }
 
+interface PendingChatBuffer {
+  userId: string;
+  userName: string;
+  userRole: string;
+  chatId: number;
+  senderId: string;
+  texts: string[];
+  timer: NodeJS.Timeout;
+}
+
+const activeChatBuffers = new Map<number, PendingChatBuffer>();
+
+async function processBufferedMessages(chatId: number) {
+  const buffer = activeChatBuffers.get(chatId);
+  if (!buffer) return;
+  activeChatBuffers.delete(chatId);
+
+  const startTime = Date.now();
+  const combinedText = buffer.texts.filter(Boolean).join('\n');
+  if (!combinedText) return;
+
+  try {
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`📩 [TELEGRAM BATCH] Mensaje(s) Agrupados (${buffer.texts.length} recibidos)`);
+    console.log(`👤 Usuario: ${buffer.userName} (Telegram ID: ${buffer.senderId} | Chat ID: ${chatId})`);
+    console.log(`💬 Contenido Consolidado:\n"${combinedText}"`);
+    console.log(`🤖 Modelo en Proceso: ${modelNames.primary} (B.ai / Cuota 0)`);
+    console.log(`⚙️  Orquestando Tools y Memoria...`);
+
+    // 1. Guardar mensaje consolidado en base de datos
+    await prisma.chatMessage.create({
+      data: {
+        userId: buffer.userId,
+        channel: 'TELEGRAM',
+        role: 'user',
+        content: combinedText,
+      },
+    });
+
+    await sendTelegramChatAction(chatId, 'typing');
+
+    // 2. Cargar historial del usuario
+    const recentMessages = await prisma.chatMessage.findMany({
+      where: { userId: buffer.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    });
+    recentMessages.reverse();
+
+    const conversationHistory = recentMessages
+      .map((m) => `${m.role === 'user' ? buffer.userName : 'Sofi'}: ${m.content}`)
+      .join('\n');
+
+    const promptWithHistory = conversationHistory
+      ? `Historial reciente:\n${conversationHistory}\n\nNuevo mensaje de ${buffer.userName}:\n${combinedText}`
+      : combinedText;
+
+    // 3. Invocación de tools scoped por userId
+    const tools = getSofiTools(buffer.userId);
+
+    const { text, steps } = await generateText({
+      model: models.primary,
+      system: `${SOFI_SYSTEM_PROMPT}\nEstás interactuando con ${buffer.userName} (Rol: ${buffer.userRole}). Responde de forma concisa, fresca y natural como en un chat real de Telegram (máximo 1-2 párrafos cortos).`,
+      prompt: promptWithHistory,
+      tools,
+      maxSteps: 5,
+    });
+
+    const durationMs = Date.now() - startTime;
+    const responseText = text || '🌸 Listo bb, lo tengo registrado.';
+
+    console.log(`\n🌸 [Sofi Response] (en ${(durationMs / 1000).toFixed(2)}s | Pasos: ${steps?.length || 1})`);
+    console.log(`💬 Respuesta a ${buffer.userName}: "${responseText}"`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+    // 4. Guardar respuesta y enviar a Telegram
+    await prisma.chatMessage.create({
+      data: {
+        userId: buffer.userId,
+        channel: 'TELEGRAM',
+        role: 'assistant',
+        content: responseText,
+      },
+    });
+
+    await sendTelegramMessage(chatId, responseText);
+  } catch (err) {
+    console.error('❌ Error al procesar buffer de Telegram:', err);
+  }
+}
+
 export async function startTelegramBackgroundPoller() {
   if (globalThis.__sofi_telegram_poller_active) {
     return; // Ya está corriendo en este proceso
@@ -23,7 +114,7 @@ export async function startTelegramBackgroundPoller() {
       console.warn('⚠️ No se pudo conectar con Telegram:', me);
       return;
     }
-    console.log(`🌸 [Sofi AI] Conectada con Telegram Bot @${me.result.username}. ¡Listo para recibir mensajes!`);
+    console.log(`🌸 [Sofi AI] Conectada con Telegram Bot @${me.result.username}. ¡Listo para recibir mensajes con buffer inteligente!`);
   } catch (err) {
     console.warn('⚠️ Error al iniciar Telegram Poller:', err);
     return;
@@ -54,12 +145,11 @@ export async function startTelegramBackgroundPoller() {
               where: { telegramId: senderId, isActive: true },
             });
 
-            // Si no está registrado por telegramId, verificar si coincide con TELEGRAM_ALLOWED_USER_ID o si es el primer Admin
+            // Auto-vinculación si es el usuario permitido
             if (!user) {
               const allowedId = process.env.TELEGRAM_ALLOWED_USER_ID;
               const isAllowed = allowedId && senderId === allowedId;
 
-              // Buscar si ya existe un admin en la DB para vincularle este Telegram ID
               const existingAdmin = await prisma.user.findFirst({
                 where: { role: 'ADMIN', isActive: true },
               });
@@ -86,80 +176,33 @@ export async function startTelegramBackgroundPoller() {
               }
             }
 
-            const startTime = Date.now();
-
-            console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-            console.log(`📩 [TELEGRAM] Mensaje Recibido`);
-            console.log(`👤 Usuario: ${user.name} (Telegram ID: ${senderId} | Chat ID: ${chatId})`);
-            console.log(`💬 Mensaje: "${userText || '(Multimedia / Audio / Foto)'}"`);
-            console.log(`🤖 Modelo en Proceso: ${modelNames.primary} (B.ai / Cuota 0)`);
-            console.log(`⚙️  Orquestando Tools y Memoria...`);
-
             if (!userText && !message.voice && !message.photo) {
-              console.log(`⚠️  Mensaje vacío sin texto ni multimedia. Omitiendo.`);
-              console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
               continue;
             }
 
-            // 2. Guardar mensaje entrante
-            if (userText) {
-              await prisma.chatMessage.create({
-                data: {
-                  userId: user.id,
-                  channel: 'TELEGRAM',
-                  role: 'user',
-                  content: userText,
-                },
-              });
-            }
+            // Indicar "escribiendo..." de inmediato para dar feedback en Telegram
+            await sendTelegramChatAction(chatId, 'typing').catch(() => {});
 
-            await sendTelegramChatAction(chatId, 'typing');
-
-            // 3. Cargar historial del usuario
-            const recentMessages = await prisma.chatMessage.findMany({
-              where: { userId: user.id },
-              orderBy: { createdAt: 'desc' },
-              take: 6,
-            });
-            recentMessages.reverse();
-
-            const conversationHistory = recentMessages
-              .map((m) => `${m.role === 'user' ? user?.name : 'Sofi'}: ${m.content}`)
-              .join('\n');
-
-            const promptWithHistory = conversationHistory
-              ? `Historial reciente:\n${conversationHistory}\n\nNuevo mensaje de ${user.name}:\n${userText || '(Envió contenido multimedia)'}`
-              : userText;
-
-            // 4. Invocación de tools scoped por userId
-            const tools = getSofiTools(user.id);
-
-            const { text, steps } = await generateText({
-              model: models.primary,
-              system: `${SOFI_SYSTEM_PROMPT}\nEstás interactuando con ${user.name} (Rol: ${user.role}).`,
-              prompt: promptWithHistory,
-              tools,
-              maxSteps: 5,
-            });
-
-            const durationMs = Date.now() - startTime;
-            const responseText = text || '🌸 Listo bb, lo tengo registrado.';
-
-            console.log(`\n🌸 [Sofi Response] (en ${(durationMs / 1000).toFixed(2)}s | Pasos: ${steps?.length || 1})`);
-            console.log(`💬 Respuesta a ${user.name}: "${responseText}"`);
-            console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-
-            // 5. Guardar respuesta y enviar
-            await prisma.chatMessage.create({
-              data: {
+            // 2. Manejo de Buffer de Espera Inteligente (Debounce de 3.5 segundos)
+            const existingBuffer = activeChatBuffers.get(chatId);
+            if (existingBuffer) {
+              clearTimeout(existingBuffer.timer);
+              if (userText) existingBuffer.texts.push(userText);
+              existingBuffer.timer = setTimeout(() => processBufferedMessages(chatId), 3500);
+              console.log(`⏳ [Buffer] Mensaje adicional agregado al buffer de ${user.name}. Esperando a que termine de escribir...`);
+            } else {
+              const newTimer = setTimeout(() => processBufferedMessages(chatId), 3500);
+              activeChatBuffers.set(chatId, {
                 userId: user.id,
-                channel: 'TELEGRAM',
-                role: 'assistant',
-                content: responseText,
-              },
-            });
-
-            await sendTelegramMessage(chatId, responseText);
+                userName: user.name,
+                userRole: user.role,
+                chatId,
+                senderId,
+                texts: userText ? [userText] : ['(Contenido multimedia recibido)'],
+                timer: newTimer,
+              });
+              console.log(`⏳ [Buffer] Iniciada ventana de espera (3.5s) para ${user.name}...`);
+            }
           }
         }
       } catch (err) {
@@ -169,4 +212,5 @@ export async function startTelegramBackgroundPoller() {
     }
   })();
 }
+
 
