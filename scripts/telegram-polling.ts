@@ -83,8 +83,8 @@ async function startPolling() {
 
           await sendTelegramChatAction(chatId, 'typing');
 
-          // Buffer Debounce de 2.5s
-          await new Promise((r) => setTimeout(r, 2500));
+          // Buffer Debounce de 5s para permitir escritura pausada de varias líneas
+          await new Promise((r) => setTimeout(r, 5000));
 
           if (currentMsg) {
             const newerMessage = await prisma.chatMessage.findFirst({

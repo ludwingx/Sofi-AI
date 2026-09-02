@@ -1,0 +1,28 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/autonomous-decision",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/reminders",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/morning-alarm",
+      "schedule": "30 11 * * *"
+    },
+    {
+      "path": "/api/cron/midday-care",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/pre-power-block",
+      "schedule": "15 23 * * *"
+    },
+    {
+      "path": "/api/cron/night-checkin",
+      "schedule": "30 2 * * *"
+    }
+  ]
+}

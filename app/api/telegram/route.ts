@@ -123,8 +123,8 @@ export async function POST(req: NextRequest) {
     // 4. Enviar indicador de "escribiendo..." de inmediato para feedback visual
     await sendTelegramChatAction(chatId, 'typing');
 
-    // 5. BUFFER / DEBOUNCE (2.5 segundos): Esperar por si el usuario está enviando mensajes continuos
-    const BUFFER_WAIT_MS = 2500;
+    // 5. BUFFER / DEBOUNCE (5.0 segundos): Ventana amplia para permitir que el usuario envíe ráfagas de 2, 3 o más mensajes
+    const BUFFER_WAIT_MS = 5000;
     await new Promise((resolve) => setTimeout(resolve, BUFFER_WAIT_MS));
 
     if (currentMsg) {
