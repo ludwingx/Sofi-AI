@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateText } from 'ai';
-import { models, modelNames } from '@/lib/ai';
-import { getSofiTools } from '@/lib/tools';
-import { SOFI_SYSTEM_PROMPT } from '@/lib/prompts';
 import { prisma } from '@/lib/prisma';
-import { sendTelegramMessage, sendTelegramChatAction, getMe, getTelegramWebhookInfo, setTelegramWebhook } from '@/lib/telegram';
+import { sendTelegramChatAction, getMe, getTelegramWebhookInfo, setTelegramWebhook } from '@/lib/telegram';
+
+// ⚠️ DISEÑO CLAVE: Este webhook SOLO guarda mensajes y retorna 200 de inmediato.
+// En Vercel serverless, setTimeout no crea buffers reales porque cada webhook
+// es una función completamente independiente y paralela. El buffer de silencio
+// de 2 minutos lo maneja el cron /api/cron/process-buffer.
 
 export async function GET(req: NextRequest) {
   try {
@@ -94,23 +95,17 @@ export async function POST(req: NextRequest) {
     }
 
     const userText = message.text || message.caption || '';
-    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`📩 [TELEGRAM WEBHOOK] Mensaje Recibido`);
-    console.log(`👤 Usuario: ${user.name} (Telegram ID: ${senderId} | Chat ID: ${chatId})`);
-    console.log(`💬 Mensaje: "${userText || '(Multimedia / Audio / Foto)'}"`);
-    console.log(`🤖 Modelo en Proceso: ${modelNames.primary} (B.ai / Cuota 0)`);
-    console.log(`⚙️  Orquestando Tools y Memoria...`);
 
     if (!userText && !message.voice && !message.photo) {
-      console.log(`⚠️  Mensaje vacío sin texto ni multimedia. Omitiendo.`);
-      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
       return NextResponse.json({ ok: true });
     }
 
-    // 3. Registrar mensaje entrante en base de datos
-    let currentMsg = null;
+    // 3. Guardar el mensaje en BD y retornar 200 INMEDIATAMENTE
+    // El buffer de 2 minutos lo gestiona el cron /api/cron/process-buffer.
+    // No se usa setTimeout aquí porque en Vercel cada webhook es una función
+    // serverless paralela e independiente — un sleep no crea buffer real.
     if (userText) {
-      currentMsg = await prisma.chatMessage.create({
+      await prisma.chatMessage.create({
         data: {
           userId: user.id,
           channel: 'TELEGRAM',
@@ -120,114 +115,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Enviar indicador de "escribiendo..." de inmediato para feedback visual
+    // Enviar "escribiendo..." para que el usuario sepa que Sofi recibió su mensaje
     await sendTelegramChatAction(chatId, 'typing');
 
-    // 5. BUFFER / DEBOUNCE (5.0 segundos): Ventana amplia para permitir que el usuario envíe ráfagas de 2, 3 o más mensajes
-    const BUFFER_WAIT_MS = 5000;
-    await new Promise((resolve) => setTimeout(resolve, BUFFER_WAIT_MS));
+    console.log(`📥 [TELEGRAM WEBHOOK] Guardado y encolado para buffer 2min: "${userText}" — Usuario: ${user.name} (Chat: ${chatId})`);
 
-    if (currentMsg) {
-      // Verificar si llegó un mensaje posterior de este usuario durante el tiempo de espera
-      const newerMessage = await prisma.chatMessage.findFirst({
-        where: {
-          userId: user.id,
-          channel: 'TELEGRAM',
-          role: 'user',
-          OR: [
-            { createdAt: { gt: currentMsg.createdAt } },
-            { createdAt: currentMsg.createdAt, id: { gt: currentMsg.id } },
-          ],
-        },
-      });
-
-      if (newerMessage) {
-        console.log(`⏳ [Buffer Debounce] Mensaje posterior detectado. Esperando al último mensaje para responder todo junto.`);
-        return NextResponse.json({ ok: true, buffered: true });
-      }
-    }
-
-    // 6. Obtener el último mensaje del asistente para consolidar TODOS los mensajes enviados por el usuario en esta ráfaga
-    const lastAssistantMsg = await prisma.chatMessage.findFirst({
-      where: { userId: user.id, channel: 'TELEGRAM', role: 'assistant' },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const pendingUserMessages = await prisma.chatMessage.findMany({
-      where: {
-        userId: user.id,
-        channel: 'TELEGRAM',
-        role: 'user',
-        ...(lastAssistantMsg ? { createdAt: { gt: lastAssistantMsg.createdAt } } : {}),
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    const combinedUserText = pendingUserMessages.length > 0
-      ? pendingUserMessages.map((m) => m.content).filter(Boolean).join('\n')
-      : userText || '(Envió contenido multimedia)';
-
-    console.log(`📦 [Buffer Consolidado] Procesando ${pendingUserMessages.length || 1} mensaje(s) acumulados en una sola respuesta:`);
-    console.log(`"${combinedUserText}"`);
-
-    // Refrescar acción de escribiendo...
-    await sendTelegramChatAction(chatId, 'typing');
-
-    // 7. Cargar historial previo (anterior a esta ráfaga) para memoria conversacional
-    const priorMessages = await prisma.chatMessage.findMany({
-      where: {
-        userId: user.id,
-        ...(lastAssistantMsg ? { createdAt: { lte: lastAssistantMsg.createdAt } } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 6,
-    });
-    priorMessages.reverse();
-
-    const conversationHistory = priorMessages
-      .map((m) => `${m.role === 'user' ? user?.name : 'Sofi'}: ${m.content}`)
-      .join('\n');
-
-    const promptWithHistory = conversationHistory
-      ? `Historial reciente:\n${conversationHistory}\n\nMensajes acumulados de ${user.name}:\n${combinedUserText}`
-      : combinedUserText;
-
-    // 8. Ejecutar Orquestador Inteligente con Tools scoped por userId
-    const tools = getSofiTools(user.id);
-
-    const { text, steps } = await generateText({
-      model: models.primary,
-      system: `${SOFI_SYSTEM_PROMPT}\nEstás interactuando con ${user.name} (Rol: ${user.role}).`,
-      prompt: promptWithHistory,
-      tools,
-      maxSteps: 5,
-    });
-
-    const durationMs = Date.now() - startTime;
-    const responseText = text || '🌸 Listo bb, lo tengo registrado.';
-
-    console.log(`\n🌸 [Sofi Response] (en ${(durationMs / 1000).toFixed(2)}s | Pasos: ${steps?.length || 1} | Mensajes acumulados: ${pendingUserMessages.length || 1})`);
-    console.log(`💬 Respuesta a ${user.name}: "${responseText}"`);
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-
-    // 9. Guardar respuesta unificada en DB
-    await prisma.chatMessage.create({
-      data: {
-        userId: user.id,
-        channel: 'TELEGRAM',
-        role: 'assistant',
-        content: responseText,
-      },
-    });
-
-    // 10. Enviar respuesta única por Telegram
-    await sendTelegramMessage(chatId, responseText);
-
-    return NextResponse.json({ ok: true, batchSize: pendingUserMessages.length || 1 });
+    // Retornar 200 al instante. El cron process-buffer disparará la respuesta
+    // después de 2 minutos de silencio del usuario.
+    return NextResponse.json({ ok: true, queued: true });
   } catch (error) {
     const durationMs = Date.now() - startTime;
     console.error(`\n❌ [TELEGRAM Error] tras ${(durationMs / 1000).toFixed(2)}s:`, error);
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
   }
 }
