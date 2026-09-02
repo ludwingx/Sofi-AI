@@ -8,7 +8,9 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
-    "bot": "npx ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/telegram-polling.ts",
+    "bot": "tsx scripts/telegram-polling.ts",
+    "webhook": "tsx scripts/set-webhook.ts",
+    "obsidian:import": "tsx scripts/import-obsidian.ts",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed"
   },
@@ -40,6 +42,7 @@
     "prisma": "^6.4.1",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

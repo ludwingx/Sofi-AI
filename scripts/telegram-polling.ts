@@ -1,11 +1,10 @@
+import 'dotenv/config';
 import { getTelegramUpdates, sendTelegramMessage, sendTelegramChatAction, getMe } from '../lib/telegram';
 import { generateText } from 'ai';
 import { models } from '../lib/ai';
 import { getSofiTools } from '../lib/tools';
 import { SOFI_SYSTEM_PROMPT } from '../lib/prompts';
 import { prisma } from '../lib/prisma';
-import * as dotenv from 'dotenv';
-dotenv.config();
 
 async function startPolling() {
   console.log('🌸 Iniciando servicio local de Sofi AI (Telegram Multi-Tenant Long Polling)...');

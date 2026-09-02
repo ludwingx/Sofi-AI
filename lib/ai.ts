@@ -1,7 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 
 const apiKey = process.env.BAI_API_KEY || process.env.DEEPSEEK_API_KEY || '';
-const baseURL = process.env.BAI_BASE_URL || 'https://api.bai.org/v1';
+const baseURL = process.env.BAI_BASE_URL || 'https://api.b.ai/v1';
 
 export const baiProvider = createOpenAI({
   apiKey,

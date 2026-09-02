@@ -4,7 +4,32 @@ import { models, modelNames } from '@/lib/ai';
 import { getSofiTools } from '@/lib/tools';
 import { SOFI_SYSTEM_PROMPT } from '@/lib/prompts';
 import { prisma } from '@/lib/prisma';
-import { sendTelegramMessage, sendTelegramChatAction } from '@/lib/telegram';
+import { sendTelegramMessage, sendTelegramChatAction, getMe, getTelegramWebhookInfo, setTelegramWebhook } from '@/lib/telegram';
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const setUrl = searchParams.get('setUrl');
+
+    if (setUrl) {
+      const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+      const targetUrl = setUrl.endsWith('/api/telegram') ? setUrl : `${setUrl.replace(/\/$/, '')}/api/telegram`;
+      const result = await setTelegramWebhook(targetUrl, secret);
+      return NextResponse.json({ action: 'setWebhook', targetUrl, result });
+    }
+
+    const me = await getMe();
+    const webhookInfo = await getTelegramWebhookInfo();
+
+    return NextResponse.json({
+      bot: me,
+      webhook: webhookInfo,
+      status: webhookInfo.result?.url ? 'WEBHOOK_ACTIVE' : 'NO_WEBHOOK_SET (Requires long-polling or setUrl param)',
+    });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
