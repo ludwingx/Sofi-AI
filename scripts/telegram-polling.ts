@@ -69,8 +69,9 @@ async function startPolling() {
           if (!userText && !message.voice && !message.photo) continue;
 
           // 2. Guardar mensaje entrante
+          let currentMsg = null;
           if (userText) {
-            await prisma.chatMessage.create({
+            currentMsg = await prisma.chatMessage.create({
               data: {
                 userId: user.id,
                 channel: 'TELEGRAM',
@@ -82,21 +83,69 @@ async function startPolling() {
 
           await sendTelegramChatAction(chatId, 'typing');
 
-          // 3. Cargar historial del usuario
-          const recentMessages = await prisma.chatMessage.findMany({
-            where: { userId: user.id },
+          // Buffer Debounce de 2.5s
+          await new Promise((r) => setTimeout(r, 2500));
+
+          if (currentMsg) {
+            const newerMessage = await prisma.chatMessage.findFirst({
+              where: {
+                userId: user.id,
+                channel: 'TELEGRAM',
+                role: 'user',
+                OR: [
+                  { createdAt: { gt: currentMsg.createdAt } },
+                  { createdAt: currentMsg.createdAt, id: { gt: currentMsg.id } },
+                ],
+              },
+            });
+
+            if (newerMessage) {
+              console.log(`⏳ [Buffer Polling] Mensaje acumulado. Esperando ráfaga...`);
+              continue;
+            }
+          }
+
+          // Consolidar todos los mensajes pendientes desde la última respuesta
+          const lastAssistantMsg = await prisma.chatMessage.findFirst({
+            where: { userId: user.id, channel: 'TELEGRAM', role: 'assistant' },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          const pendingUserMessages = await prisma.chatMessage.findMany({
+            where: {
+              userId: user.id,
+              channel: 'TELEGRAM',
+              role: 'user',
+              ...(lastAssistantMsg ? { createdAt: { gt: lastAssistantMsg.createdAt } } : {}),
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+
+          const combinedUserText = pendingUserMessages.length > 0
+            ? pendingUserMessages.map((m) => m.content).filter(Boolean).join('\n')
+            : userText;
+
+          console.log(`📦 [Buffer Polling] Procesando ${pendingUserMessages.length || 1} mensaje(s) juntos:\n"${combinedUserText}"`);
+          await sendTelegramChatAction(chatId, 'typing');
+
+          // 3. Cargar historial del usuario anterior a esta ráfaga
+          const priorMessages = await prisma.chatMessage.findMany({
+            where: {
+              userId: user.id,
+              ...(lastAssistantMsg ? { createdAt: { lte: lastAssistantMsg.createdAt } } : {}),
+            },
             orderBy: { createdAt: 'desc' },
             take: 6,
           });
-          recentMessages.reverse();
+          priorMessages.reverse();
 
-          const conversationHistory = recentMessages
+          const conversationHistory = priorMessages
             .map((m) => `${m.role === 'user' ? user?.name : 'Sofi'}: ${m.content}`)
             .join('\n');
 
           const promptWithHistory = conversationHistory
-            ? `Historial reciente:\n${conversationHistory}\n\nNuevo mensaje de ${user.name}:\n${userText || '(Envió contenido multimedia)'}`
-            : userText;
+            ? `Historial reciente:\n${conversationHistory}\n\nMensajes acumulados de ${user.name}:\n${combinedUserText}`
+            : combinedUserText;
 
           // 4. Invocación de tools scoped por userId
           const tools = getSofiTools(user.id);
