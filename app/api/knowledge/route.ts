@@ -104,6 +104,15 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const clearAll = searchParams.get('clearAll');
+
+    if (clearAll === 'true') {
+      const user = await prisma.user.findFirst({ where: { isActive: true }, orderBy: { role: 'asc' } });
+      if (user) {
+        await prisma.knowledgeDocument.deleteMany({ where: { userId: user.id } });
+      }
+      return NextResponse.json({ success: true, message: 'Todas las notas han sido eliminadas.' });
+    }
 
     if (!id) {
       return NextResponse.json({ error: 'Document ID is required' }, { status: 400 });
