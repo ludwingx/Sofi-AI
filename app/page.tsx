@@ -43,17 +43,15 @@ const DASHBOARD_MODULES = [
 ];
 
 export default function SofiDashboard() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: '¡Hoooola Ludwing! 🌸 ¿Qué tal tu día? Todo tu sistema 360° está conectado: finanzas, despensa, notas de Obsidian y Bloque de Poder.',
-      time: '12:00',
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [metrics, setMetrics] = useState<any>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pendingQueueRef = useRef<string[]>([]);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,29 +59,47 @@ export default function SofiDashboard() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isBuffering, loading]);
 
+  // Cargar historial real y métricas financieras
   useEffect(() => {
-    fetch('/api/finance').then(r => r.json()).then(setMetrics).catch(() => {});
+    fetch('/api/chat')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.messages && data.messages.length > 0) {
+          setMessages(data.messages);
+        } else {
+          setMessages([
+            {
+              role: 'assistant',
+              content: '¡Holi Ludwing! 🌸 Todo tu sistema 360° está conectado: finanzas, despensa, notas y Bloque de Poder.',
+              time: '12:00',
+            },
+          ]);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/finance').then((r) => r.json()).then(setMetrics).catch(() => {});
   }, []);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  // Función que despacha el lote acumulado de mensajes al servidor
+  const dispatchAccumulatedMessages = async () => {
+    const queue = [...pendingQueueRef.current];
+    pendingQueueRef.current = [];
+    setIsBuffering(false);
 
-    const userMsg = input.trim();
-    setInput('');
+    if (queue.length === 0) return;
+
+    setLoading(true);
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-
-    setMessages((prev) => [...prev, { role: 'user', content: userMsg, time: timeStr }]);
-    setLoading(true);
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({ messages: queue }),
       });
       const data = await res.json();
       if (data.response) {
@@ -102,6 +118,32 @@ export default function SofiDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const userMsg = input.trim();
+    if (!userMsg) return;
+
+    setInput('');
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    // Añadir mensaje visualmente a la UI al instante
+    setMessages((prev) => [...prev, { role: 'user', content: userMsg, time: timeStr }]);
+
+    // Agregar a la cola de ráfaga
+    pendingQueueRef.current.push(userMsg);
+    setIsBuffering(true);
+
+    // Reiniciar temporizador del buffer (2.5 segundos tras el último mensaje)
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      dispatchAccumulatedMessages();
+    }, 2500);
   };
 
   return (
@@ -252,6 +294,17 @@ export default function SofiDashboard() {
                 </div>
               </div>
             ))}
+            {isBuffering && !loading && (
+              <div className="flex gap-3 justify-start items-center text-xs text-zinc-400">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-xs shrink-0 text-white font-bold">
+                  🌸
+                </div>
+                <div className="bg-zinc-800/90 px-4 py-2 rounded-2xl border border-pink-500/30 flex items-center gap-2 text-pink-300">
+                  <span className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></span>
+                  <span>Sofi está esperando por si mandas más mensajes...</span>
+                </div>
+              </div>
+            )}
             {loading && (
               <div className="flex gap-3 justify-start items-center text-xs text-zinc-400">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-xs shrink-0 text-white font-bold">
@@ -261,7 +314,7 @@ export default function SofiDashboard() {
                   <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce"></span>
                   <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce [animation-delay:0.2s]"></span>
                   <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce [animation-delay:0.4s]"></span>
-                  <span>Sofi está pensando...</span>
+                  <span>Sofi está respondiendo...</span>
                 </div>
               </div>
             )}
@@ -274,12 +327,12 @@ export default function SofiDashboard() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Escribe a Sofi... (ej: 'Gasté 25 Bs en almuerzo', 'Me preparé un mate', '¿Qué ideas tengo?')"
+              placeholder="Escribe a Sofi... (puedes enviar varias líneas seguidas)"
               className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-pink-500 transition-colors"
             />
             <button
               type="submit"
-              disabled={loading || !input.trim()}
+              disabled={!input.trim()}
               className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 transition-all shadow-md shadow-pink-500/20"
             >
               <Send className="w-4 h-4" />
