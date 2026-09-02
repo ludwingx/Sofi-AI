@@ -1,5 +1,8 @@
-{
   "crons": [
+    {
+      "path": "/api/cron/process-buffer",
+      "schedule": "* * * * *"
+    },
     {
       "path": "/api/cron/autonomous-decision",
       "schedule": "0 * * * *"
