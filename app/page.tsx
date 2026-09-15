@@ -162,7 +162,7 @@ export default function SofiDashboard() {
                 Telegram Live (@sofi_777_bot)
               </span>
             </div>
-            <p className="text-[11px] text-zinc-400">Personalidad Camba Cruceña • DeepSeek V4 & PostgreSQL RAG</p>
+            <p className="text-[11px] text-zinc-400">Personalidad Camba Cruceña • Qwen 3.8 Flash & PostgreSQL RAG</p>
           </div>
         </div>
 

@@ -11,7 +11,7 @@ export const baiProvider = createOpenAI({
 
 // Nombres de modelos para trazabilidad en logs y orquestación
 export const modelNames = {
-  primary: 'deepseek-v4-flash',
+  primary: 'qwen3.8-flash',
   vision: 'deepseek-v4-flash-vision-exp',
   deepReasoning: 'deepseek-v4-pro',
   sonnet: 'claude-sonnet-5',
