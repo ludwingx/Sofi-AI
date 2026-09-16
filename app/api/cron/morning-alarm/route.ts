@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage } from '@/lib/telegram';
-import { generateText } from 'ai';
-import { models } from '@/lib/ai';
+import { generateResilientText } from '@/lib/ai';
 import { SOFI_SYSTEM_PROMPT } from '@/lib/prompts';
 
 export async function GET(req: NextRequest) {
@@ -21,8 +20,7 @@ export async function GET(req: NextRequest) {
     const results = [];
 
     for (const user of activeUsers) {
-      const { text } = await generateText({
-        model: models.primary,
+      const { text } = await generateResilientText({
         system: `${SOFI_SYSTEM_PROMPT}\nEstás despertando con calidez y enfoque a ${user.name}.`,
         prompt: `Son las 07:00 AM. Escribe un saludo matutino reconfortante, lleno de energía y enfocado para ${user.name}. Recuérdale hidratarse, prepararse un mate o café y arrancar el día con fuerza.`,
       });

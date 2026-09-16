@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage } from '@/lib/telegram';
-import { generateText } from 'ai';
-import { models } from '@/lib/ai';
+import { generateResilientText } from '@/lib/ai';
 import { SOFI_SYSTEM_PROMPT } from '@/lib/prompts';
 
 export async function GET(req: NextRequest) {
@@ -113,11 +112,19 @@ Devuelve ÚNICAMENTE un JSON válido sin markdown ni comillas extras:
   "messageText": "Texto exacto del mensaje corto que le llegará a Telegram (solo si shouldSendMessage es true)"
 }`;
 
-      const { text } = await generateText({
-        model: models.primary,
+      const { text, failedGracefully } = await generateResilientText({
         system: SOFI_SYSTEM_PROMPT,
         prompt: evaluationPrompt,
       });
+
+      if (failedGracefully) {
+        decisions.push({
+          user: user.name,
+          skipped: true,
+          reason: 'AI provider unavailable or quota exhausted',
+        });
+        continue;
+      }
 
       try {
         const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();

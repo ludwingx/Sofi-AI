@@ -1,6 +1,5 @@
 import { getTelegramUpdates, sendTelegramMessage, sendTelegramChatAction, getMe } from './telegram';
-import { generateText } from 'ai';
-import { models, modelNames } from './ai';
+import { generateResilientText, modelNames } from './ai';
 import { getSofiTools } from './tools';
 import { SOFI_SYSTEM_PROMPT } from './prompts';
 import { prisma } from './prisma';
@@ -69,8 +68,7 @@ async function processBufferedMessages(chatId: number) {
     // 3. Invocación de tools scoped por userId
     const tools = getSofiTools(buffer.userId);
 
-    const { text, steps } = await generateText({
-      model: models.primary,
+    const { text, steps, modelUsed } = await generateResilientText({
       system: `${SOFI_SYSTEM_PROMPT}\nEstás interactuando con ${buffer.userName} (Rol: ${buffer.userRole}). Responde de forma concisa, fresca y natural como en un chat real de Telegram (máximo 1-2 párrafos cortos).`,
       prompt: promptWithHistory,
       tools,
@@ -80,7 +78,7 @@ async function processBufferedMessages(chatId: number) {
     const durationMs = Date.now() - startTime;
     const responseText = text || '🌸 Listo bb, lo tengo registrado.';
 
-    console.log(`\n🌸 [Sofi Response] (en ${(durationMs / 1000).toFixed(2)}s | Pasos: ${steps?.length || 1})`);
+    console.log(`\n🌸 [Sofi Response] (en ${(durationMs / 1000).toFixed(2)}s | Modelo: ${modelUsed} | Pasos: ${steps?.length || 1})`);
     console.log(`💬 Respuesta a ${buffer.userName}: "${responseText}"`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 

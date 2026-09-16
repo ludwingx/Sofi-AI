@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage } from '@/lib/telegram';
-import { generateText } from 'ai';
-import { models } from '@/lib/ai';
+import { generateResilientText } from '@/lib/ai';
 import { SOFI_SYSTEM_PROMPT } from '@/lib/prompts';
 
 export async function GET(req: NextRequest) {
@@ -17,8 +16,7 @@ export async function GET(req: NextRequest) {
     const results = [];
 
     for (const user of activeUsers) {
-      const { text } = await generateText({
-        model: models.primary,
+      const { text } = await generateResilientText({
         system: `${SOFI_SYSTEM_PROMPT}\nEstás cuidando la salud de ${user.name} a media tarde.`,
         prompt: `Son las 15:30 PM. Envía un mensaje breve a ${user.name} para recordarle tomar un vaso de agua, despegar la vista de la pantalla por 2 minutos y estirar un poco el cuello y la espalda.`,
       });

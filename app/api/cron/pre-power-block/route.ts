@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage } from '@/lib/telegram';
-import { generateText } from 'ai';
-import { models } from '@/lib/ai';
+import { generateResilientText } from '@/lib/ai';
 import { SOFI_SYSTEM_PROMPT } from '@/lib/prompts';
 
 export async function GET(req: NextRequest) {
@@ -23,8 +22,7 @@ export async function GET(req: NextRequest) {
     for (const user of activeUsers) {
       const mood = user.moodStates[0];
 
-      const { text } = await generateText({
-        model: models.primary,
+      const { text } = await generateResilientText({
         system: `${SOFI_SYSTEM_PROMPT}\nEstás enviando una notificación proactiva a ${user.name}.`,
         prompt: `Son las 19:25 PM. Escribe un mensaje breve, cariñoso y motivador para ${user.name} avisándole que en 5 minutos arranca su Bloque de Poder (19:30 - 21:45 PM). Pregúntale en qué proyecto nos enfocaremos hoy (ej: Sofi AI u otro). Estado de ánimo actual: paciencia ${mood?.patience ?? 100}%, afecto ${mood?.affection ?? 90}%.`,
       });

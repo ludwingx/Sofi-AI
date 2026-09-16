@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { generateText } from 'ai';
-import { models, modelNames } from '@/lib/ai';
+import { generateResilientText, modelNames } from '@/lib/ai';
 import { getSofiTools } from '@/lib/tools';
 import { SOFI_SYSTEM_PROMPT } from '@/lib/prompts';
 import { sendTelegramMessage } from '@/lib/telegram';
@@ -96,10 +95,9 @@ export async function processUserBuffer(userId: string, options: { force?: boole
     ? `Historial reciente:\n${conversationHistory}\n\nMensajes acumulados de ${user.name} tras 2 minutos de silencio:\n${combinedUserText}`
     : combinedUserText;
 
-  // 5. Ejecutar IA con herramientas
+  // 5. Ejecutar IA con herramientas de forma tolerante a fallos
   const tools = getSofiTools(user.id);
-  const { text, steps } = await generateText({
-    model: models.primary,
+  const { text, steps, modelUsed } = await generateResilientText({
     system: `${SOFI_SYSTEM_PROMPT}\nEstás respondiendo a los mensajes acumulados de ${user.name} (Rol: ${user.role}).`,
     prompt: promptWithHistory,
     tools,
@@ -109,7 +107,7 @@ export async function processUserBuffer(userId: string, options: { force?: boole
   const durationMs = Date.now() - startTime;
   const responseText = text || '🌸 Listo mi rey, lo tengo todo registrado.';
 
-  console.log(`🌸 [Sofi Response] en ${(durationMs / 1000).toFixed(2)}s | Pasos: ${steps?.length || 1}`);
+  console.log(`🌸 [Sofi Response] en ${(durationMs / 1000).toFixed(2)}s | Modelo usado: ${modelUsed} | Pasos: ${steps?.length || 1}`);
   console.log(`💬 "${responseText}"`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
