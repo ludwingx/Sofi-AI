@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendTelegramChatAction, getMe, getTelegramWebhookInfo, setTelegramWebhook } from '@/lib/telegram';
+import { processUserBuffer } from '@/lib/bufferProcessor';
 
 // ⚠️ DISEÑO CLAVE: Este webhook SOLO guarda mensajes y retorna 200 de inmediato.
 // En Vercel serverless, setTimeout no crea buffers reales porque cada webhook
@@ -100,12 +101,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // 3. Guardar el mensaje en BD y retornar 200 INMEDIATAMENTE
-    // El buffer de 2 minutos lo gestiona el cron /api/cron/process-buffer.
-    // No se usa setTimeout aquí porque en Vercel cada webhook es una función
-    // serverless paralela e independiente — un sleep no crea buffer real.
+    // 3. Guardar el mensaje en BD
+    let currentMsg = null;
     if (userText) {
-      await prisma.chatMessage.create({
+      currentMsg = await prisma.chatMessage.create({
         data: {
           userId: user.id,
           channel: 'TELEGRAM',
@@ -115,14 +114,39 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Enviar "escribiendo..." para que el usuario sepa que Sofi recibió su mensaje
-    await sendTelegramChatAction(chatId, 'typing');
+    // Enviar "escribiendo..." de inmediato para feedback visual al usuario
+    await sendTelegramChatAction(chatId, 'typing').catch(() => {});
 
-    console.log(`📥 [TELEGRAM WEBHOOK] Guardado y encolado para buffer 2min: "${userText}" — Usuario: ${user.name} (Chat: ${chatId})`);
+    console.log(`📥 [TELEGRAM WEBHOOK] Guardado mensaje de ${user.name}: "${userText}". Esperando ventana de buffer...`);
 
-    // Retornar 200 al instante. El cron process-buffer disparará la respuesta
-    // después de 2 minutos de silencio del usuario.
-    return NextResponse.json({ ok: true, queued: true });
+    // Esperar ventana debounce (4.0s) para permitir ráfagas de mensajes del usuario
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+
+    // Si llegó un mensaje más reciente de este mismo usuario durante la espera, dejar que la petición más reciente responda
+    if (currentMsg) {
+      const newerMessage = await prisma.chatMessage.findFirst({
+        where: {
+          userId: user.id,
+          channel: 'TELEGRAM',
+          role: 'user',
+          OR: [
+            { createdAt: { gt: currentMsg.createdAt } },
+            { createdAt: currentMsg.createdAt, id: { gt: currentMsg.id } },
+          ],
+        },
+      });
+
+      if (newerMessage) {
+        console.log(`⏳ [Buffer Debounce] Mensaje posterior detectado para ${user.name}. Delegando respuesta a la siguiente ráfaga.`);
+        return NextResponse.json({ ok: true, buffered: true });
+      }
+    }
+
+    // Procesar todos los mensajes acumulados de forma tolerante a fallos
+    await sendTelegramChatAction(chatId, 'typing').catch(() => {});
+    const result = await processUserBuffer(user.id, { force: true });
+
+    return NextResponse.json({ ok: true, result });
   } catch (error) {
     const durationMs = Date.now() - startTime;
     console.error(`\n❌ [TELEGRAM Error] tras ${(durationMs / 1000).toFixed(2)}s:`, error);
