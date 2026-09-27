@@ -2,14 +2,21 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 
-const apiKey = process.env.BAI_API_KEY || process.env.DEEPSEEK_API_KEY || '';
-const baseURL = process.env.BAI_BASE_URL || 'https://api.b.ai/v1';
+const apiKey = process.env.OPENROUTER_API_KEY || process.env.BAI_API_KEY || process.env.DEEPSEEK_API_KEY || '';
+const baseURL = process.env.OPENROUTER_BASE_URL || process.env.BAI_BASE_URL || 'https://openrouter.ai/api/v1';
 
-export const baiProvider = createOpenAI({
+export const openrouterProvider = createOpenAI({
   apiKey,
   baseURL,
   compatibility: 'compatible',
+  headers: {
+    'HTTP-Referer': 'https://sofi.ai',
+    'X-Title': 'Sofi AI',
+  },
 });
+
+// Alias para retrocompatibilidad
+export const baiProvider = openrouterProvider;
 
 // Proveedor Google opcional si se provee clave en variables de entorno
 const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
@@ -19,33 +26,33 @@ export const googleProvider = googleApiKey
 
 // Nombres de modelos para trazabilidad en logs y orquestación
 export const modelNames = {
-  primary: process.env.AI_PRIMARY_MODEL || 'qwen3.8-flash',
-  fallback: process.env.AI_FALLBACK_MODEL || 'mimo-v2.5',
-  vision: process.env.AI_VISION_MODEL || 'qwen3.8-flash',
-  deepReasoning: process.env.AI_REASONING_MODEL || 'qwen3.8-flash',
-  sonnet: 'claude-sonnet-5',
-  glmFlash: 'glm-5.3-flash',
-  qwenFlash: 'qwen3.8-flash',
+  primary: process.env.AI_PRIMARY_MODEL || 'openrouter/free',
+  fallback: process.env.AI_FALLBACK_MODEL || 'openrouter/free',
+  vision: process.env.AI_VISION_MODEL || 'openrouter/free',
+  deepReasoning: process.env.AI_REASONING_MODEL || 'openrouter/free',
+  sonnet: 'anthropic/claude-3.5-sonnet',
+  glmFlash: 'openrouter/free',
+  qwenFlash: 'openrouter/free',
 };
 
 // Modelos disponibles
 export const models = {
-  // Modelo principal conversacional (Coste 0 / Ultra rápido)
-  primary: baiProvider(modelNames.primary),
+  // Modelo principal conversacional (OpenRouter Free Router)
+  primary: openrouterProvider(modelNames.primary),
   
-  // Modelo de respaldo gratuito si el primario falla o agota saldo
-  fallback: baiProvider(modelNames.fallback),
+  // Modelo de respaldo gratuito si el primario falla
+  fallback: openrouterProvider(modelNames.fallback),
   
   // Modelo con visión multimodal
-  vision: baiProvider(modelNames.vision),
+  vision: openrouterProvider(modelNames.vision),
   
   // Modelo de razonamiento
-  deepReasoning: baiProvider(modelNames.deepReasoning),
+  deepReasoning: openrouterProvider(modelNames.deepReasoning),
   
   // Alternativas
-  sonnet: baiProvider(modelNames.sonnet),
-  glmFlash: baiProvider(modelNames.glmFlash),
-  qwenFlash: baiProvider(modelNames.qwenFlash),
+  sonnet: openrouterProvider(modelNames.sonnet),
+  glmFlash: openrouterProvider(modelNames.glmFlash),
+  qwenFlash: openrouterProvider(modelNames.qwenFlash),
 };
 
 export type ResilientGenerateTextParams = Omit<Parameters<typeof generateText>[0], 'model'> & {
@@ -116,7 +123,7 @@ export async function generateResilientText(params: ResilientGenerateTextParams)
 
   if (allowGracefulFailure) {
     return {
-      text: '🌸 Oye mi rey, parece que nos quedamos sin saldo en el proveedor de IA (balance: 0 en B.ai). Porfa recargá la cuenta o revisá las variables de entorno para que pueda responderte.',
+      text: '🌸 Oye mi rey, parece que hubo un inconveniente con el proveedor de IA (OpenRouter). Porfa revisá tu cuenta o las variables de entorno para que pueda responderte.',
       steps: [],
       modelUsed: 'none',
       failedGracefully: true,

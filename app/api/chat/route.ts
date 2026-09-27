@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     console.log(`📩 [WEB CHAT] Mensaje(s) Recibido(s): ${rawMessages.length}`);
     console.log(`👤 Usuario: ${user.name} (Rol: ${user.role} | ID: ${user.id})`);
     console.log(`💬 Contenido: "${rawMessages.join(' | ')}"`);
-    console.log(`🤖 Modelo en Proceso: ${modelNames.primary} (B.ai / Cuota 0)`);
+    console.log(`🤖 Modelo en Proceso: ${modelNames.primary} (OpenRouter / Free)`);
     console.log(`⚙️  Orquestando Tools y Memoria...`);
 
     // 2. Guardar todos los mensajes entrantes del lote

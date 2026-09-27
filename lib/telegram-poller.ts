@@ -34,7 +34,7 @@ async function processBufferedMessages(chatId: number) {
     console.log(`📩 [TELEGRAM BATCH] Mensaje(s) Agrupados (${buffer.texts.length} recibidos)`);
     console.log(`👤 Usuario: ${buffer.userName} (Telegram ID: ${buffer.senderId} | Chat ID: ${chatId})`);
     console.log(`💬 Contenido Consolidado:\n"${combinedText}"`);
-    console.log(`🤖 Modelo en Proceso: ${modelNames.primary} (B.ai / Cuota 0)`);
+    console.log(`🤖 Modelo en Proceso: ${modelNames.primary} (OpenRouter / Free)`);
     console.log(`⚙️  Orquestando Tools y Memoria...`);
 
     // 1. Guardar mensaje consolidado en base de datos
