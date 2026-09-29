@@ -178,10 +178,7 @@ export async function startTelegramBackgroundPoller() {
               continue;
             }
 
-            // Indicar "escribiendo..." de inmediato para dar feedback en Telegram
-            await sendTelegramChatAction(chatId, 'typing').catch(() => {});
-
-            // 2. Manejo de Buffer de Espera Inteligente (Debounce de 3.5 segundos)
+            // 2. Manejo de Buffer de Espera Inteligente (Debounce de 5 segundos)
             const existingBuffer = activeChatBuffers.get(chatId);
             if (existingBuffer) {
               clearTimeout(existingBuffer.timer);

@@ -1,12 +1,18 @@
 import 'dotenv/config';
-import { getTelegramUpdates, sendTelegramChatAction, getMe } from '../lib/telegram';
+import { getTelegramUpdates, getMe } from '../lib/telegram';
 import { prisma } from '../lib/prisma';
 import { processUserBuffer } from '../lib/bufferProcessor';
+import {
+  pushMessageToRedisBuffer,
+  getAndClearRedisBuffer,
+  clearRedisBufferAndLock,
+  DEBOUNCE_SILENCE_SECONDS,
+} from '../lib/redisBuffer';
 
 const activeTimers: Record<string, NodeJS.Timeout> = {};
 
 async function startPolling() {
-  console.log('🌸 Iniciando servicio local de Sofi AI (Telegram Long Polling con Buffer 2 Min)...');
+  console.log('🌸 Iniciando servicio local de Sofi AI (Telegram Polling con Buffer Inteligente)...');
 
   try {
     const me = await getMe();
@@ -15,7 +21,7 @@ async function startPolling() {
       return;
     }
     console.log(`✅ Conectado exitosamente con @${me.result.username} (${me.result.first_name})`);
-    console.log('🚀 Buffer de 2 minutos activo. Sofi responderá tras 2 min de silencio.\n');
+    console.log(`🚀 Buffer inteligente de ${DEBOUNCE_SILENCE_SECONDS}s de silencio activo. Sofi responderá agrupando tus mensajes.\n`);
   } catch (err) {
     console.error('❌ No se pudo conectar a Telegram. Verifica TELEGRAM_BOT_TOKEN en .env:', err);
     return;
@@ -66,9 +72,10 @@ async function startPolling() {
 
           if (!userText && !message.voice && !message.photo) continue;
 
-          // 2. Guardar mensaje entrante en BD
+          // 2. Guardar mensaje entrante individual en BD
+          let currentMsg = null;
           if (userText) {
-            await prisma.chatMessage.create({
+            currentMsg = await prisma.chatMessage.create({
               data: {
                 userId: user.id,
                 channel: 'TELEGRAM',
@@ -78,22 +85,43 @@ async function startPolling() {
             });
           }
 
-          await sendTelegramChatAction(chatId, 'typing');
+          // 3. Encolar en buffer de Redis (sin activar typing)
+          await pushMessageToRedisBuffer(
+            user.id,
+            chatId,
+            currentMsg?.id || String(Date.now()),
+            userText
+          );
 
-          // 3. Reiniciar el temporizador del Buffer de 2 minutos (120 segundos)
+          // 4. Reiniciar el temporizador del Buffer de silencio (5 segundos)
           if (activeTimers[user.id]) {
             clearTimeout(activeTimers[user.id]);
           }
 
           const userId = user.id;
           const userName = user.name;
-          console.log(`⏱️ [Buffer Activo] Acumulando para ${userName}. Disparará tras 2 minutos de silencio...`);
+          console.log(`⏱️ [Buffer Activo] Acumulando para ${userName}. Esperando ${DEBOUNCE_SILENCE_SECONDS}s de silencio...`);
 
           activeTimers[userId] = setTimeout(async () => {
             delete activeTimers[userId];
-            console.log(`⏰ [Buffer 2 min cumplido] Disparando respuesta para ${userName}...`);
-            await processUserBuffer(userId, { force: true });
-          }, 120_000); // 2 minutos exactos
+            console.log(`⏰ [Buffer cumplido] Silencio alcanzado para ${userName}. Disparando al agente...`);
+
+            try {
+              const bufferedItems = await getAndClearRedisBuffer(userId);
+              const combinedText =
+                bufferedItems.length > 0
+                  ? bufferedItems.map((item) => item.text).filter(Boolean).join('\n')
+                  : userText;
+
+              await processUserBuffer(userId, {
+                force: true,
+                combinedText,
+                chatId,
+              });
+            } finally {
+              await clearRedisBufferAndLock(userId);
+            }
+          }, DEBOUNCE_SILENCE_SECONDS * 1000);
         }
       }
     } catch (err) {
